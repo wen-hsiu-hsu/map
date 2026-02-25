@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Globe Map - Test Harness</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; display: flex; height: 100vh; }
+    #controls {
+      width: 320px;
+      flex-shrink: 0;
+      padding: 16px;
+      overflow-y: auto;
+      background: #f8fafc;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    h2 { font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 4px; }
+    button {
+      width: 100%;
+      padding: 8px 12px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: #2563eb; }
+    #log {
+      font-size: 11px;
+      background: #1e293b;
+      color: #94a3b8;
+      padding: 8px;
+      border-radius: 6px;
+      height: 160px;
+      overflow-y: auto;
+      font-family: monospace;
+    }
+    #log .event { color: #4ade80; }
+    #map-frame { flex: 1; border: none; }
+    .section { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <h1 style="font-size:16px;font-weight:700;color:#0f172a">Globe Map Test</h1>
+
+    <div class="section">
+      <h2>Status</h2>
+      <div id="status" style="font-size:12px;color:#64748b;margin-top:4px">Waiting for READY...</div>
+    </div>
+
+    <div class="section">
+      <h2>SET_MARKERS</h2>
+      <button onclick="setMarkers()">Set 3 Markers</button>
+      <button onclick="setManyMarkers()" style="margin-top:6px;background:#7c3aed">Set 60 Markers (cluster test)</button>
+    </div>
+
+    <div class="section">
+      <h2>FLY_TO</h2>
+      <button onclick="flyTo(25.0478, 121.5319, 10)">Taipei (zoom 10)</button>
+      <button onclick="flyTo(35.6762, 139.6503, 8)" style="margin-top:6px">Tokyo (zoom 8)</button>
+      <button onclick="flyTo(51.5074, -0.1278, 9)" style="margin-top:6px">London (zoom 9)</button>
+    </div>
+
+    <div class="section">
+      <h2>HIGHLIGHT</h2>
+      <button onclick="highlight('marker-1')">Highlight marker-1</button>
+      <button onclick="highlight(null)" style="margin-top:6px;background:#64748b">Clear Highlight</button>
+    </div>
+
+    <div class="section">
+      <h2>SET_OPTIONS (jumpTo)</h2>
+      <button onclick="setOptions([0, 20], 2)">Reset to default</button>
+    </div>
+
+    <div class="section">
+      <h2>Test: Queue before READY</h2>
+      <button onclick="testQueue()" style="background:#f59e0b">Reload + send before READY</button>
+    </div>
+
+    <div class="section">
+      <h2>Events Log</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <iframe
+    id="map-frame"
+    src="/"
+    allow="geolocation"
+  ></iframe>
+
+  <script>
+    const frame = document.getElementById('map-frame');
+    const log = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+
+    function addLog(msg, isEvent = false) {
+      const div = document.createElement('div');
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      if (isEvent) div.classList.add('event');
+      log.prepend(div);
+    }
+
+    window.addEventListener('message', (e) => {
+      if (!e.data?.type) return;
+      addLog(JSON.stringify(e.data), true);
+      if (e.data.type === 'READY') {
+        statusEl.textContent = 'Map READY';
+        statusEl.style.color = '#16a34a';
+      }
+    });
+
+    function send(msg) {
+      frame.contentWindow.postMessage(msg, '*');
+      addLog('Sent: ' + JSON.stringify(msg));
+    }
+
+    function setMarkers() {
+      send({
+        type: 'SET_MARKERS',
+        markers: [
+          { id: 'marker-1', lat: 25.0478, lng: 121.5319, label: 'Taipei', color: '#ef4444' },
+          { id: 'marker-2', lat: 35.6762, lng: 139.6503, label: 'Tokyo', color: '#3b82f6' },
+          { id: 'marker-3', lat: 51.5074, lng: -0.1278, label: 'London', color: '#f59e0b' },
+        ]
+      });
+    }
+
+    function setManyMarkers() {
+      const markers = Array.from({ length: 60 }, (_, i) => ({
+        id: `m-${i}`,
+        lat: (Math.random() - 0.5) * 140,
+        lng: (Math.random() - 0.5) * 340,
+        label: `P${i}`,
+        color: '#22c55e',
+      }));
+      send({ type: 'SET_MARKERS', markers });
+    }
+
+    function flyTo(lat, lng, zoom) {
+      send({ type: 'FLY_TO', lat, lng, zoom });
+    }
+
+    function highlight(id) {
+      send({ type: 'HIGHLIGHT', id });
+    }
+
+    function setOptions(center, zoom) {
+      send({ type: 'SET_OPTIONS', center, zoom });
+    }
+
+    function testQueue() {
+      // Send message immediately, before map READY
+      statusEl.textContent = 'Waiting for READY...';
+      statusEl.style.color = '#64748b';
+      frame.src = frame.src; // reload iframe
+      setTimeout(() => {
+        addLog('Sending FLY_TO before READY...');
+        send({ type: 'FLY_TO', lat: 25.0478, lng: 121.5319, zoom: 10 });
+        send({ type: 'SET_MARKERS', markers: [
+          { id: 'q1', lat: 25.0478, lng: 121.5319, label: 'Queued Taipei', color: '#ef4444' }
+        ]});
+      }, 100);
+    }
+  </script>
+</body>
+</html>
