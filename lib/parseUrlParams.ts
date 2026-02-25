@@ -16,6 +16,7 @@ export interface UrlParams {
   onMarkerClick?: 'event-only' | 'flyto+highlight';
   flyToZoom?: number;
   smartFlyThreshold?: number;
+  markerColor?: string;
 }
 
 function decodeBase64Url(str: string): string {
@@ -79,6 +80,11 @@ export function parseUrlParams(): UrlParams {
   if (smartFlyThresholdParam) {
     const v = parseFloat(smartFlyThresholdParam);
     if (!isNaN(v)) result.smartFlyThreshold = v;
+  }
+
+  const markerColorParam = params.get('markerColor');
+  if (markerColorParam) {
+    result.markerColor = markerColorParam;
   }
 
   const markersParam = params.get('markers');

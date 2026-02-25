@@ -501,11 +501,14 @@ type MarkerContentProps = {
 function MarkerContent({ children, className }: MarkerContentProps) {
   const { marker } = useMarkerContext();
 
+  const el = marker.getElement();
+  el.style.overflow = 'visible';
+
   return createPortal(
     <div className={cn("relative cursor-pointer", className)}>
       {children || <DefaultMarkerIcon />}
     </div>,
-    marker.getElement()
+    el
   );
 }
 

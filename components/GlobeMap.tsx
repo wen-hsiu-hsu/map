@@ -25,18 +25,71 @@ function sendToParent(msg: OutboundMessage) {
 interface MarkerElementProps {
   marker: MarkerData;
   isActive: boolean;
+  hasActiveMarker: boolean;
+  defaultColor: string;
   onClick: (id: string) => void;
 }
 
-function MarkerElement({ marker, isActive, onClick }: MarkerElementProps) {
-  const color = marker.color || '#22c55e';
+function MarkerElement({ marker, isActive, hasActiveMarker, defaultColor, onClick }: MarkerElementProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const color = marker.color || defaultColor;
+
+  function setMarkerZIndex(value: string) {
+    const markerEl = containerRef.current?.closest<HTMLElement>('.maplibregl-marker');
+    if (markerEl) markerEl.style.zIndex = value;
+  }
+
+  // Show label when: active, hovered, or no highlight mode active
+  const showLabel = !!marker.label && (isActive || isHovered || !hasActiveMarker);
+  // Dim non-active dots when a highlight is active
+  const dotOpacity = hasActiveMarker && !isActive ? 0.3 : 1;
+
   return (
     <div
+      ref={containerRef}
       data-marker="true"
-      style={{ cursor: 'pointer', userSelect: 'none', textAlign: 'center', padding: '4px 8px', margin: '-4px -8px' }}
+      style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'visible' }}
       onClick={() => onClick(marker.id)}
+      onMouseEnter={() => { setIsHovered(true); setMarkerZIndex('1000'); }}
+      onMouseLeave={() => { setIsHovered(false); setMarkerZIndex(''); }}
     >
-      <div style={{ position: 'relative', width: 14, height: 14, margin: '0 auto' }}>
+      {/* Label card + connecting line, above the dot */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 0 }}>
+        {/* Frosted glass label card */}
+        <div
+          style={{
+            visibility: showLabel ? 'visible' : 'hidden',
+            opacity: showLabel ? 1 : 0,
+            transition: 'opacity 0.15s ease',
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#1e293b',
+            whiteSpace: 'nowrap',
+            padding: '3px 8px',
+            borderRadius: 6,
+            background: 'rgba(255,255,255,0.92)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.15), 0 0 0 0.5px rgba(0,0,0,0.1)',
+            lineHeight: '16px',
+          }}
+        >
+          {marker.label}
+        </div>
+        {/* Connecting line */}
+        <div
+          style={{
+            visibility: showLabel ? 'visible' : 'hidden',
+            opacity: showLabel ? 1 : 0,
+            transition: 'opacity 0.15s ease',
+            width: 1,
+            height: 10,
+            background: 'rgba(0,0,0,0.25)',
+          }}
+        />
+      </div>
+
+      {/* Dot */}
+      <div style={{ position: 'relative', width: 14, height: 14, opacity: dotOpacity, transition: 'opacity 0.2s ease' }}>
         {/* ping 擴散環 */}
         {isActive && (
           <div
@@ -56,21 +109,6 @@ function MarkerElement({ marker, isActive, onClick }: MarkerElementProps) {
           }}
         />
       </div>
-      {marker.label && (
-        <div
-          style={{
-            marginTop: 4,
-            fontSize: 11,
-            fontWeight: 600,
-            color: '#1e293b',
-            whiteSpace: 'nowrap',
-            textShadow:
-              '0 1px 2px #fff, 0 -1px 2px #fff, 1px 0 2px #fff, -1px 0 2px #fff',
-          }}
-        >
-          {marker.label}
-        </div>
-      )}
     </div>
   );
 }
@@ -80,6 +118,7 @@ interface MapEventsProps {
   markers: MarkerData[];
   activeMarkerId: string | null;
   onMarkerClick: (id: string) => void;
+  defaultMarkerColor: string;
   pendingQueue: React.MutableRefObject<InboundMessage[]>;
   onMessage: (msg: InboundMessage) => void;
   onMapReady: (map: MapLibreGL.Map) => void;
@@ -90,6 +129,7 @@ function MapEvents({
   markers,
   activeMarkerId,
   onMarkerClick,
+  defaultMarkerColor,
   pendingQueue,
   onMessage,
   onMapReady,
@@ -164,13 +204,15 @@ function MapEvents({
             key={marker.id}
             longitude={marker.lng}
             latitude={marker.lat}
-            anchor="top"
-            offset={[0, -7]}
+            anchor="bottom"
+            offset={[0, 7]}
           >
             <MarkerContent>
               <MarkerElement
                 marker={marker}
                 isActive={activeMarkerId === marker.id}
+                hasActiveMarker={activeMarkerId !== null}
+                defaultColor={defaultMarkerColor}
                 onClick={onMarkerClick}
               />
             </MarkerContent>
@@ -378,6 +420,7 @@ export default function GlobeMap() {
           markers={markers}
           activeMarkerId={activeMarkerId}
           onMarkerClick={handleMarkerClick}
+          defaultMarkerColor={urlParams.current.markerColor ?? '#22c55e'}
           pendingQueue={pendingQueue}
           onMessage={handleMessage}
           onMapReady={onMapReady}
