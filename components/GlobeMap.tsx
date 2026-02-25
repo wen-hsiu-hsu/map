@@ -133,25 +133,8 @@ function MapEvents({
 
   return (
     <>
-      {markers.map((marker) => (
-        <MapMarker
-          key={marker.id}
-          longitude={marker.lng}
-          latitude={marker.lat}
-          anchor="top"
-          offset={[0, -7]}
-        >
-          <MarkerContent>
-            <MarkerElement
-              marker={marker}
-              isActive={activeMarkerId === marker.id}
-              onClick={onMarkerClick}
-            />
-          </MarkerContent>
-        </MapMarker>
-      ))}
-
-      {markers.length > 50 && (
+      {/* cluster 模式（> 50 點）：只用 GL layer，隱藏所有 DOM markers */}
+      {markers.length > 50 ? (
         <MapClusterLayer
           data={clusterData}
           clusterMaxZoom={14}
@@ -159,6 +142,24 @@ function MapEvents({
           clusterColors={['#22c55e', '#eab308', '#ef4444']}
           pointColor="#22c55e"
         />
+      ) : (
+        markers.map((marker) => (
+          <MapMarker
+            key={marker.id}
+            longitude={marker.lng}
+            latitude={marker.lat}
+            anchor="top"
+            offset={[0, -7]}
+          >
+            <MarkerContent>
+              <MarkerElement
+                marker={marker}
+                isActive={activeMarkerId === marker.id}
+                onClick={onMarkerClick}
+              />
+            </MarkerContent>
+          </MapMarker>
+        ))
       )}
     </>
   );
@@ -233,10 +234,18 @@ export default function GlobeMap() {
     [markers]
   );
 
-  const onMapReady = useCallback((_map: MapLibreGL.Map) => {
+  const onMapReady = useCallback((map: MapLibreGL.Map) => {
     setIsLoaded(true);
-    if (urlParams.current.markers?.length) {
-      setMarkers(urlParams.current.markers);
+    // Apply center/zoom AFTER globe projection is set (setProjection resets camera)
+    const p = urlParams.current;
+    if (p.center || p.zoom !== undefined) {
+      const jumpOptions: MapLibreGL.CameraOptions = {};
+      if (p.center) jumpOptions.center = p.center;
+      if (p.zoom !== undefined) jumpOptions.zoom = p.zoom;
+      map.jumpTo(jumpOptions);
+    }
+    if (p.markers?.length) {
+      setMarkers(p.markers);
     }
   }, []);
 
