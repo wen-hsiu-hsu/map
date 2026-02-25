@@ -7,6 +7,7 @@ import type { MarkerData } from '@/lib/parseUrlParams';
 import type { InboundMessage, OutboundMessage } from '@/lib/postMessageTypes';
 import { isValidCoords } from '@/lib/validateCoords';
 import { parseUrlParams } from '@/lib/parseUrlParams';
+import { triggerSmartFlyTo } from '@/lib/flyTo';
 
 const BASEMAP_URL =
   process.env.NEXT_PUBLIC_BASEMAP_URL ||
@@ -31,6 +32,7 @@ function MarkerElement({ marker, isActive, onClick }: MarkerElementProps) {
   const color = marker.color || '#22c55e';
   return (
     <div
+      data-marker="true"
       style={{ cursor: 'pointer', userSelect: 'none', textAlign: 'center', padding: '4px 8px', margin: '-4px -8px' }}
       onClick={() => onClick(marker.id)}
     >
@@ -122,6 +124,20 @@ function MapEvents({
     };
   }, [mapReady, map]);
 
+  useEffect(() => {
+    if (!mapReady || !map) return;
+    const onMapClick = (e: MapLibreGL.MapMouseEvent) => {
+      // Don't fire MAP_CLICK when user clicked on a marker DOM element
+      const target = e.originalEvent.target as HTMLElement | null;
+      if (target?.closest('[data-marker]')) return;
+      sendToParent({ type: 'MAP_CLICK', lat: e.lngLat.lat, lng: e.lngLat.lng });
+    };
+    map.on('click', onMapClick);
+    return () => {
+      map.off('click', onMapClick);
+    };
+  }, [mapReady, map]);
+
   const clusterData: GeoJSON.FeatureCollection<GeoJSON.Point> = {
     type: 'FeatureCollection',
     features: markers.map((m) => ({
@@ -173,8 +189,41 @@ export default function GlobeMap() {
   const urlParams = useRef(parseUrlParams());
   const mapRef = useRef<MapLibreGL.Map | null>(null);
 
-  const initialCenter = urlParams.current.center ?? DEFAULT_CENTER;
+  // New state for map-core-enhancements — use refs to avoid stale closures in handleMessage
+  const onMarkerClickModeRef = useRef<'event-only' | 'flyto+highlight'>('event-only');
+  const globalFlyToZoomRef = useRef<number | undefined>(undefined);
+  const smartFlyThresholdRef = useRef<number | undefined>(undefined);
+  const markersRef = useRef<MarkerData[]>([]);
+
+  // Keep markersRef in sync with markers state
+  useEffect(() => {
+    markersRef.current = markers;
+  }, [markers]);
+
+  // Resolve initial center: if it's a markerId reference, use DEFAULT_CENTER for Map component
+  // (actual resolution happens in onMapReady after markers are set)
+  const initialCenter = (() => {
+    const c = urlParams.current.center;
+    if (!c || typeof c === 'object' && 'markerId' in c) return DEFAULT_CENTER;
+    return c as [number, number];
+  })();
   const initialZoom = urlParams.current.zoom ?? DEFAULT_ZOOM;
+
+  const applyInteractive = useCallback((map: MapLibreGL.Map, interactive: boolean) => {
+    if (interactive) {
+      map.dragPan.enable();
+      map.scrollZoom.enable();
+      map.doubleClickZoom.enable();
+      map.touchZoomRotate.enable();
+      map.keyboard.enable();
+    } else {
+      map.dragPan.disable();
+      map.scrollZoom.disable();
+      map.doubleClickZoom.disable();
+      map.touchZoomRotate.disable();
+      map.keyboard.disable();
+    }
+  }, []);
 
   const handleMessage = useCallback((msg: InboundMessage) => {
     const map = mapRef.current;
@@ -188,26 +237,55 @@ export default function GlobeMap() {
           sendToParent({ type: 'ERROR', message: 'Invalid coordinates for FLY_TO' });
           return;
         }
-        const flyOptions: MapLibreGL.FlyToOptions = {
-          center: [msg.lng, msg.lat],
-          duration: 1500,
-        };
-        if (msg.zoom !== undefined) flyOptions.zoom = msg.zoom;
-        map?.flyTo(flyOptions);
+        if (!map) return;
+        triggerSmartFlyTo(
+          map,
+          { lng: msg.lng, lat: msg.lat },
+          {
+            zoom: msg.zoom,
+            globalFlyToZoom: globalFlyToZoomRef.current,
+            smartFlyThreshold: smartFlyThresholdRef.current,
+            onStart: (t) => sendToParent({ type: 'FLY_START', lat: t.lat, lng: t.lng }),
+            onEnd: (t) => sendToParent({ type: 'FLY_END', lat: t.lat, lng: t.lng }),
+          }
+        );
         break;
       }
       case 'HIGHLIGHT':
         setActiveMarkerId(msg.id);
         break;
       case 'SET_OPTIONS': {
-        const jumpOptions: MapLibreGL.CameraOptions = {};
-        if (msg.center) jumpOptions.center = msg.center;
-        if (msg.zoom !== undefined) jumpOptions.zoom = msg.zoom;
-        map?.jumpTo(jumpOptions);
+        if (msg.onMarkerClick !== undefined) {
+          onMarkerClickModeRef.current = msg.onMarkerClick;
+        }
+        if (msg.flyToZoom !== undefined) {
+          globalFlyToZoomRef.current = msg.flyToZoom;
+        }
+        if (msg.smartFlyThreshold !== undefined) {
+          smartFlyThresholdRef.current = msg.smartFlyThreshold;
+        }
+        if (msg.interactive !== undefined && map) {
+          applyInteractive(map, msg.interactive);
+        }
+
+        if (msg.center !== undefined || msg.zoom !== undefined) {
+          const jumpOptions: MapLibreGL.CameraOptions = {};
+          if (msg.center !== undefined) {
+            if (Array.isArray(msg.center)) {
+              jumpOptions.center = msg.center as [number, number];
+            } else if ('markerId' in msg.center) {
+              const found = markersRef.current.find((m) => m.id === (msg.center as { markerId: string }).markerId);
+              if (found) jumpOptions.center = [found.lng, found.lat];
+              // else: fallback — do not jump
+            }
+          }
+          if (msg.zoom !== undefined) jumpOptions.zoom = msg.zoom;
+          if (Object.keys(jumpOptions).length > 0) map?.jumpTo(jumpOptions);
+        }
         break;
       }
     }
-  }, []);
+  }, [applyInteractive]);
 
   // postMessage listener
   useEffect(() => {
@@ -228,25 +306,57 @@ export default function GlobeMap() {
     (id: string) => {
       const marker = markers.find((m) => m.id === id);
       if (!marker) return;
-      setActiveMarkerId(id);
       sendToParent({ type: 'MARKER_CLICK', id, lat: marker.lat, lng: marker.lng });
+
+      if (onMarkerClickModeRef.current === 'flyto+highlight') {
+        setActiveMarkerId(id);
+        const map = mapRef.current;
+        if (map) {
+          triggerSmartFlyTo(
+            map,
+            { lng: marker.lng, lat: marker.lat },
+            {
+              markerFlyToZoom: marker.flyToZoom,
+              globalFlyToZoom: globalFlyToZoomRef.current,
+              smartFlyThreshold: smartFlyThresholdRef.current,
+              onStart: (t) => sendToParent({ type: 'FLY_START', lat: t.lat, lng: t.lng }),
+              onEnd: (t) => sendToParent({ type: 'FLY_END', lat: t.lat, lng: t.lng }),
+            }
+          );
+        }
+      } else {
+        setActiveMarkerId(id);
+      }
     },
     [markers]
   );
 
   const onMapReady = useCallback((map: MapLibreGL.Map) => {
     setIsLoaded(true);
-    // Apply center/zoom AFTER globe projection is set (setProjection resets camera)
     const p = urlParams.current;
-    if (p.center || p.zoom !== undefined) {
-      const jumpOptions: MapLibreGL.CameraOptions = {};
-      if (p.center) jumpOptions.center = p.center;
-      if (p.zoom !== undefined) jumpOptions.zoom = p.zoom;
-      map.jumpTo(jumpOptions);
-    }
+
+    // Apply URL-param global settings
+    if (p.onMarkerClick) onMarkerClickModeRef.current = p.onMarkerClick;
+    if (p.flyToZoom !== undefined) globalFlyToZoomRef.current = p.flyToZoom;
+    if (p.smartFlyThreshold !== undefined) smartFlyThresholdRef.current = p.smartFlyThreshold;
+
+    // Set markers first so center→markerId resolution can find them
     if (p.markers?.length) {
       setMarkers(p.markers);
     }
+
+    // Resolve center: support marker:<id> reference
+    const jumpOptions: MapLibreGL.CameraOptions = {};
+    if (p.center !== undefined) {
+      if (Array.isArray(p.center)) {
+        jumpOptions.center = p.center as [number, number];
+      } else if ('markerId' in p.center) {
+        const found = (p.markers ?? []).find((m) => m.id === (p.center as { markerId: string }).markerId);
+        jumpOptions.center = found ? [found.lng, found.lat] : DEFAULT_CENTER;
+      }
+    }
+    if (p.zoom !== undefined) jumpOptions.zoom = p.zoom;
+    if (Object.keys(jumpOptions).length > 0) map.jumpTo(jumpOptions);
   }, []);
 
   const onMapRef = useCallback((map: MapLibreGL.Map | null) => {

@@ -1,5 +1,7 @@
-## ADDED Requirements
+## Purpose
 
+定義地圖標記的放置、樣式、高亮、聚合與點擊事件行為。
+## Requirements
 ### Requirement: 標記放置
 地圖 SHALL 支援同時顯示多個標記。每個標記 SHALL 包含 `id`（唯一識別碼）、`lat`、`lng`（經緯度）、`label`（地點名稱）、`color`（可選 CSS 色號）。`color` 未指定時 SHALL 使用預設綠色。
 
@@ -57,3 +59,19 @@
 #### Scenario: 點擊標記
 - **WHEN** 使用者點擊地圖上的標記
 - **THEN** 地圖發送 MARKER_CLICK postMessage，包含對應標記的 id 與座標
+
+### Requirement: 標記個別 flyToZoom
+每個標記 SHALL 支援選用欄位 `flyToZoom`（數字），指定飛行至該標記時的落點 zoom 層級。未指定時使用全域 flyToZoom 或系統預設值。此欄位 SHALL 在 SET_MARKERS、URL params markers 陣列中均可使用。
+
+#### Scenario: marker flyToZoom 在 onMarkerClick 模式下套用
+- **WHEN** `onMarkerClick` 設定為 `flyto+highlight`，使用者點擊 `flyToZoom: 15` 的標記
+- **THEN** 飛行落點 zoom 為 15
+
+#### Scenario: marker flyToZoom 未指定時使用全域設定
+- **WHEN** marker 無 `flyToZoom` 欄位，全域 `flyToZoom` 為 12
+- **THEN** 飛行落點 zoom 為 12
+
+#### Scenario: SET_MARKERS 傳入 flyToZoom
+- **WHEN** 外部網站發送 `{ type: "SET_MARKERS", markers: [{ id: "a", lat: 25, lng: 121, flyToZoom: 14 }] }`
+- **THEN** 地圖儲存該標記的 flyToZoom 值，供後續飛行時使用
+

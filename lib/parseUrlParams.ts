@@ -4,12 +4,18 @@ export interface MarkerData {
   lng: number;
   label?: string;
   color?: string;
+  flyToZoom?: number;
 }
 
+export type CenterParam = [number, number] | { markerId: string };
+
 export interface UrlParams {
-  center?: [number, number]; // [lng, lat]
+  center?: CenterParam;
   zoom?: number;
   markers?: MarkerData[];
+  onMarkerClick?: 'event-only' | 'flyto+highlight';
+  flyToZoom?: number;
+  smartFlyThreshold?: number;
 }
 
 function decodeBase64Url(str: string): string {
@@ -19,7 +25,10 @@ function decodeBase64Url(str: string): string {
   while (base64.length % 4 !== 0) {
     base64 += '=';
   }
-  return atob(base64);
+  // Use TextDecoder to handle UTF-8 correctly (atob only handles Latin1)
+  const binary = atob(base64);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 export function parseUrlParams(): UrlParams {
@@ -30,12 +39,19 @@ export function parseUrlParams(): UrlParams {
 
   const centerParam = params.get('center');
   if (centerParam) {
-    const parts = centerParam.split(',');
-    if (parts.length === 2) {
-      const lng = parseFloat(parts[0]);
-      const lat = parseFloat(parts[1]);
-      if (!isNaN(lng) && !isNaN(lat)) {
-        result.center = [lng, lat];
+    if (centerParam.startsWith('marker:')) {
+      const markerId = centerParam.slice('marker:'.length);
+      if (markerId) {
+        result.center = { markerId };
+      }
+    } else {
+      const parts = centerParam.split(',');
+      if (parts.length === 2) {
+        const lng = parseFloat(parts[0]);
+        const lat = parseFloat(parts[1]);
+        if (!isNaN(lng) && !isNaN(lat)) {
+          result.center = [lng, lat];
+        }
       }
     }
   }
@@ -48,6 +64,23 @@ export function parseUrlParams(): UrlParams {
     }
   }
 
+  const onMarkerClickParam = params.get('onMarkerClick');
+  if (onMarkerClickParam === 'flyto+highlight' || onMarkerClickParam === 'event-only') {
+    result.onMarkerClick = onMarkerClickParam;
+  }
+
+  const flyToZoomParam = params.get('flyToZoom');
+  if (flyToZoomParam) {
+    const v = parseFloat(flyToZoomParam);
+    if (!isNaN(v)) result.flyToZoom = v;
+  }
+
+  const smartFlyThresholdParam = params.get('smartFlyThreshold');
+  if (smartFlyThresholdParam) {
+    const v = parseFloat(smartFlyThresholdParam);
+    if (!isNaN(v)) result.smartFlyThreshold = v;
+  }
+
   const markersParam = params.get('markers');
   if (markersParam) {
     try {
@@ -57,7 +90,7 @@ export function parseUrlParams(): UrlParams {
         result.markers = parsed as MarkerData[];
       }
     } catch {
-      console.warn('[map] Failed to parse markers URL param:', markersParam);
+      // silently ignore invalid markers param
     }
   }
 
