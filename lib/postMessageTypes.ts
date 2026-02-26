@@ -13,7 +13,8 @@ export type InboundMessage =
       flyToZoom?: number;
       smartFlyThreshold?: number;
       interactive?: boolean;
-    };
+    }
+  | { type: 'PLAY_INTRO' };
 
 // Outbound messages (from map to parent)
 export type OutboundMessage =

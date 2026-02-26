@@ -17,6 +17,9 @@ export interface UrlParams {
   flyToZoom?: number;
   smartFlyThreshold?: number;
   markerColor?: string;
+  intro?: boolean;
+  introDuration?: number;
+  introRotate?: number;
 }
 
 function decodeBase64Url(str: string): string {
@@ -85,6 +88,23 @@ export function parseUrlParams(): UrlParams {
   const markerColorParam = params.get('markerColor');
   if (markerColorParam) {
     result.markerColor = markerColorParam;
+  }
+
+  const introParam = params.get('intro');
+  if (introParam === 'true' || introParam === '1') {
+    result.intro = true;
+  }
+
+  const introDurationParam = params.get('introDuration');
+  if (introDurationParam) {
+    const v = parseFloat(introDurationParam);
+    if (!isNaN(v) && v > 0) result.introDuration = v;
+  }
+
+  const introRotateParam = params.get('introRotate');
+  if (introRotateParam) {
+    const v = parseFloat(introRotateParam);
+    if (!isNaN(v)) result.introRotate = v;
   }
 
   const markersParam = params.get('markers');

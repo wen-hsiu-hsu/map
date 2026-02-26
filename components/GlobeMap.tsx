@@ -149,7 +149,6 @@ function MapEvents({
       const queue = pendingQueue.current;
       pendingQueue.current = [];
       queue.forEach(onMessage);
-      sendToParent({ type: 'READY' });
     }
   }, [mapReady, map, onMapReady, pendingQueue, onMessage]);
 
@@ -223,13 +222,63 @@ function MapEvents({
   );
 }
 
+interface PlayIntroOptions {
+  duration?: number;
+  rotate?: number;
+  onEnd?: () => void;
+}
+
+function playIntro(
+  map: MapLibreGL.Map,
+  targetCenter: [number, number],
+  targetZoom: number,
+  options: PlayIntroOptions = {}
+) {
+  const { duration = 3000, rotate = 90, onEnd } = options;
+  const [targetLng, targetLat] = targetCenter;
+  const startLng = targetLng - rotate;
+  const startZoom = 1;
+
+  map.jumpTo({ center: [startLng, 0], zoom: startZoom });
+
+  const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+  const startTime = performance.now();
+  let rafId: number;
+
+  function frame(now: number) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const e = easeInOut(t);
+
+    const lng = startLng + (targetLng - startLng) * e;
+    const lat = 0 + (targetLat - 0) * e;
+    const zoom = startZoom + (targetZoom - startZoom) * e;
+
+    map.jumpTo({ center: [lng, lat], zoom });
+
+    if (t < 1) {
+      rafId = requestAnimationFrame(frame);
+    } else {
+      map.jumpTo({ center: targetCenter, zoom: targetZoom });
+      onEnd?.();
+    }
+  }
+
+  rafId = requestAnimationFrame(frame);
+
+  // Return cleanup function in case animation needs to be cancelled
+  return () => cancelAnimationFrame(rafId);
+}
+
 export default function GlobeMap() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(true);
   const pendingQueue = useRef<InboundMessage[]>([]);
   const [markers, setMarkers] = useState<MarkerData[]>([]);
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
   const urlParams = useRef(parseUrlParams());
   const mapRef = useRef<MapLibreGL.Map | null>(null);
+  const cancelIntroRef = useRef<(() => void) | null>(null);
 
   // New state for map-core-enhancements — use refs to avoid stale closures in handleMessage
   const onMarkerClickModeRef = useRef<'event-only' | 'flyto+highlight'>('event-only');
@@ -270,6 +319,32 @@ export default function GlobeMap() {
   const handleMessage = useCallback((msg: InboundMessage) => {
     const map = mapRef.current;
     switch (msg.type) {
+      case 'PLAY_INTRO': {
+        if (!map) return;
+        const p = urlParams.current;
+        let targetCenter: [number, number] = DEFAULT_CENTER;
+        if (p.center !== undefined) {
+          if (Array.isArray(p.center)) {
+            targetCenter = p.center as [number, number];
+          } else if ('markerId' in p.center) {
+            const found = markersRef.current.find((m) => m.id === (p.center as { markerId: string }).markerId);
+            if (found) targetCenter = [found.lng, found.lat];
+          }
+        }
+        const targetZoom = p.zoom ?? DEFAULT_ZOOM;
+        cancelIntroRef.current?.();
+        setShowOverlay(true);
+        // Wait for overlay to fade in before starting animation
+        setTimeout(() => {
+          setShowOverlay(false);
+          cancelIntroRef.current = playIntro(map, targetCenter, targetZoom, {
+            duration: p.introDuration,
+            rotate: p.introRotate,
+            onEnd: () => sendToParent({ type: 'READY' }),
+          });
+        }, 300);
+        break;
+      }
       case 'SET_MARKERS':
         setMarkers(msg.markers || []);
         setActiveMarkerId(null);
@@ -387,26 +462,66 @@ export default function GlobeMap() {
       setMarkers(p.markers);
     }
 
-    // Resolve center: support marker:<id> reference
-    const jumpOptions: MapLibreGL.CameraOptions = {};
+    // Resolve target center
+    let targetCenter: [number, number] = DEFAULT_CENTER;
     if (p.center !== undefined) {
       if (Array.isArray(p.center)) {
-        jumpOptions.center = p.center as [number, number];
+        targetCenter = p.center as [number, number];
       } else if ('markerId' in p.center) {
         const found = (p.markers ?? []).find((m) => m.id === (p.center as { markerId: string }).markerId);
-        jumpOptions.center = found ? [found.lng, found.lat] : DEFAULT_CENTER;
+        targetCenter = found ? [found.lng, found.lat] : DEFAULT_CENTER;
       }
     }
-    if (p.zoom !== undefined) jumpOptions.zoom = p.zoom;
-    if (Object.keys(jumpOptions).length > 0) map.jumpTo(jumpOptions);
+    const targetZoom = p.zoom ?? DEFAULT_ZOOM;
+
+    if (p.intro) {
+      // Jump to intro start position while overlay is still opaque
+      const rotate = p.introRotate ?? 90;
+      map.jumpTo({ center: [targetCenter[0] - rotate, 0], zoom: 1 });
+      // rAF ensures browser paints opacity:1 before we change to 0, triggering the CSS transition
+      requestAnimationFrame(() => {
+        map.getCanvas().style.opacity = '1';
+        setShowOverlay(false);
+      });
+      setTimeout(() => {
+        cancelIntroRef.current = playIntro(map, targetCenter, targetZoom, {
+          duration: p.introDuration,
+          rotate: p.introRotate,
+          onEnd: () => sendToParent({ type: 'READY' }),
+        });
+      }, 400);
+    } else {
+      map.jumpTo({ center: targetCenter, zoom: targetZoom });
+      requestAnimationFrame(() => {
+        map.getCanvas().style.opacity = '1';
+        setShowOverlay(false);
+      });
+      sendToParent({ type: 'READY' });
+    }
   }, []);
 
   const onMapRef = useCallback((map: MapLibreGL.Map | null) => {
     mapRef.current = map;
+    if (map) {
+      const canvas = map.getCanvas();
+      canvas.style.opacity = '0';
+      canvas.style.transition = 'opacity 0.3s ease';
+    }
   }, []);
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 10,
+          background: '#ffffff',
+          opacity: showOverlay ? 1 : 0,
+          transition: 'opacity 0.3s ease',
+          pointerEvents: showOverlay ? 'auto' : 'none',
+        }}
+      />
       <Map
         styles={{ light: BASEMAP_URL, dark: BASEMAP_URL }}
         theme="light"

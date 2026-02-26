@@ -62,6 +62,9 @@ function buildIframeSrc(
   onMarkerClick: 'event-only' | 'flyto+highlight',
   globalFlyToZoom: string,
   smartFlyThreshold: string,
+  introEnabled: boolean,
+  introDuration: string,
+  introRotate: string,
 ): string {
   const base = typeof window !== 'undefined' ? window.location.origin : ''
   const params = new URLSearchParams()
@@ -74,6 +77,11 @@ function buildIframeSrc(
   if (onMarkerClick === 'flyto+highlight') params.set('onMarkerClick', 'flyto+highlight')
   if (globalFlyToZoom) params.set('flyToZoom', globalFlyToZoom)
   if (smartFlyThreshold) params.set('smartFlyThreshold', smartFlyThreshold)
+  if (introEnabled) {
+    params.set('intro', 'true')
+    if (introDuration) params.set('introDuration', introDuration)
+    if (introRotate) params.set('introRotate', introRotate)
+  }
   const encodedMarkers = encodeMarkersBase64(markers)
   if (encodedMarkers) params.set('markers', encodedMarkers)
   const query = params.toString()
@@ -95,6 +103,9 @@ interface PersistedState {
   onMarkerClick: 'event-only' | 'flyto+highlight'
   globalFlyToZoom: string
   smartFlyThreshold: string
+  introEnabled: boolean
+  introDuration: string
+  introRotate: string
   markerCounter: number
 }
 
@@ -171,6 +182,9 @@ export default function GeneratorPage() {
   const [onMarkerClick, setOnMarkerClick] = usePersistedState<'event-only' | 'flyto+highlight'>('onMarkerClick', 'event-only')
   const [globalFlyToZoom, setGlobalFlyToZoom] = usePersistedState<string>('globalFlyToZoom', '')
   const [smartFlyThreshold, setSmartFlyThreshold] = usePersistedState<string>('smartFlyThreshold', '')
+  const [introEnabled, setIntroEnabled] = usePersistedState<boolean>('introEnabled', false)
+  const [introDuration, setIntroDuration] = usePersistedState<string>('introDuration', '')
+  const [introRotate, setIntroRotate] = usePersistedState<string>('introRotate', '')
   const [copied, setCopied] = useState(false)
 
   // Coordinate picker
@@ -192,10 +206,12 @@ export default function GeneratorPage() {
   useEffect(() => {
     const state: PersistedState = {
       centerMode, centerLng, centerLat, centerMarkerId, zoom, markers,
-      onMarkerClick, globalFlyToZoom, smartFlyThreshold, markerCounter,
+      onMarkerClick, globalFlyToZoom, smartFlyThreshold,
+      introEnabled, introDuration, introRotate,
+      markerCounter,
     }
     localStorage.setItem(LS_KEY, JSON.stringify(state))
-  }, [centerMode, centerLng, centerLat, centerMarkerId, zoom, markers, onMarkerClick, globalFlyToZoom, smartFlyThreshold])
+  }, [centerMode, centerLng, centerLat, centerMarkerId, zoom, markers, onMarkerClick, globalFlyToZoom, smartFlyThreshold, introEnabled, introDuration, introRotate])
 
   // Persist live state
   useEffect(() => {
@@ -209,8 +225,8 @@ export default function GeneratorPage() {
   const mapReadyRef = useRef(false)
 
   const iframeSrc = useMemo(
-    () => buildIframeSrc(centerMode, centerLng, centerLat, centerMarkerId, zoom, markers, onMarkerClick, globalFlyToZoom, smartFlyThreshold),
-    [centerMode, centerLng, centerLat, centerMarkerId, zoom, markers, onMarkerClick, globalFlyToZoom, smartFlyThreshold],
+    () => buildIframeSrc(centerMode, centerLng, centerLat, centerMarkerId, zoom, markers, onMarkerClick, globalFlyToZoom, smartFlyThreshold, introEnabled, introDuration, introRotate),
+    [centerMode, centerLng, centerLat, centerMarkerId, zoom, markers, onMarkerClick, globalFlyToZoom, smartFlyThreshold, introEnabled, introDuration, introRotate],
   )
   const tooLong = iframeSrc.length > 4000
 
@@ -469,6 +485,34 @@ export default function GeneratorPage() {
                 </div>
               </section>
 
+              {/* Intro Animation */}
+              <section style={sectionStyle}>
+                <h2 style={h2Style}>Intro Animation</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={introEnabled}
+                      onChange={(e) => setIntroEnabled(e.target.checked)}
+                      style={{ width: 14, height: 14, cursor: 'pointer' }}
+                    />
+                    <span>Enable intro animation</span>
+                  </label>
+                  {introEnabled && (
+                    <>
+                      <label style={labelStyle}>
+                        Duration (ms)
+                        <input style={inputStyle} type="number" step="100" min={500} value={introDuration} onChange={(e) => setIntroDuration(e.target.value)} placeholder="3000 (default)" />
+                      </label>
+                      <label style={labelStyle}>
+                        Rotate offset (deg)
+                        <input style={inputStyle} type="number" step="1" value={introRotate} onChange={(e) => setIntroRotate(e.target.value)} placeholder="90 (default)" />
+                      </label>
+                    </>
+                  )}
+                </div>
+              </section>
+
               {/* Markers */}
               <section style={sectionStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -576,6 +620,13 @@ export default function GeneratorPage() {
                   <label style={{ ...labelStyle, width: 72 }}>Zoom<input style={inputStyle} type="number" step="any" value={optZoom} onChange={(e) => setOptZoom(e.target.value)} placeholder="opt" /></label>
                 </div>
                 <button style={btnStyle} onClick={sendSetOptions}>Send SET_OPTIONS</button>
+              </section>
+
+              {/* PLAY_INTRO */}
+              <section style={sectionStyle}>
+                <h2 style={h2Style}>PLAY_INTRO</h2>
+                <p style={{ fontSize: 12, color: '#475569', marginBottom: 8 }}>重播開場動畫，結束後重新發送 READY。</p>
+                <button style={btnStyle} onClick={() => sendLive({ type: 'PLAY_INTRO' })}>Send PLAY_INTRO</button>
               </section>
 
               {/* Events Log */}

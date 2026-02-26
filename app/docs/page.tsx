@@ -118,6 +118,9 @@ export default function DocsPage() {
             { name: 'onMarkerClick', type: 'string', required: false, desc: '"flyto+highlight" 使點擊標記時自動飛行並高亮；預設為 "event-only"' },
             { name: 'flyToZoom', type: 'number', required: false, desc: 'flyTo 動畫的目標縮放等級' },
             { name: 'smartFlyThreshold', type: 'number', required: false, desc: '超過此距離（km）才執行三段智慧飛行。預設 500' },
+            { name: 'intro', type: 'boolean', required: false, desc: '"true" 或 "1" 啟用開場動畫：地球從遠處旋轉縮近至 center。啟用時 READY 事件延後至動畫結束後發送' },
+            { name: 'introDuration', type: 'number', required: false, desc: '開場動畫時長（毫秒）。預設 3000' },
+            { name: 'introRotate', type: 'number', required: false, desc: '動畫起始點相對於目標 center 的經度偏移量（度）。預設 90' },
           ]} />
         </Section>
 
@@ -185,6 +188,11 @@ const src = \`https://your-domain/?markers=\${encoded}\``}</CodeBlock>
               payload: `{ type: "SET_OPTIONS", center: [121.53, 25.05], zoom: 10 }
 // 或設定點擊行為
 { type: "SET_OPTIONS", onMarkerClick: "flyto+highlight" }`,
+            },
+            {
+              cmd: 'PLAY_INTRO',
+              desc: '重播開場動畫（地球旋轉縮近至 center），結束後重新發送 READY',
+              payload: `{ type: "PLAY_INTRO" }`,
             },
           ].map(({ cmd, desc, payload }) => (
             <div key={cmd} style={{ marginBottom: 24 }}>
