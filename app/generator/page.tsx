@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -350,7 +351,10 @@ export default function GeneratorPage() {
 
         {/* Header + Tabs */}
         <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
-          <h1 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Map Generator</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h1 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Map Generator</h1>
+            <Link href="/docs" style={{ fontSize: 12, color: '#0369a1', textDecoration: 'none', padding: '3px 8px', border: '1px solid #bae6fd', borderRadius: 5, background: '#f0f9ff' }}>文件說明</Link>
+          </div>
           <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0' }}>
             {(['embed', 'live'] as const).map((tab) => (
               <button
