@@ -178,6 +178,11 @@ const src = \`https://your-domain/?markers=\${encoded}\``}</CodeBlock>
               payload: `{ type: "FLY_TO", lat: 25.05, lng: 121.53, zoom: 12 }`,
             },
             {
+              cmd: 'EASE_TO',
+              desc: '平滑轉動地球至指定座標（easeTo，不像 FLY_TO 會中途拉遠）。zoom 預設維持目前縮放，offset 為像素位移 [x, y]，duration 為毫秒，預設 1200',
+              payload: `{ type: "EASE_TO", lat: 25.05, lng: 121.53, zoom: 3, offset: [0, 0], duration: 1200 }`,
+            },
+            {
               cmd: 'HIGHLIGHT',
               desc: '高亮指定 id 的標記（光暈效果）',
               payload: `{ type: "HIGHLIGHT", id: "a1" }`,
