@@ -154,6 +154,28 @@ function MapEvents({
     }
   }, [mapReady, map, onMapReady, pendingQueue, onMessage]);
 
+  // projected view centre + visible limb radius, so the embedder can draw against the globe
+  useEffect(() => {
+    if (!mapReady || !map) return;
+    const post = () => {
+      const c = map.getCenter();
+      const o = map.project([c.lng, c.lat]);
+      // limb measured, not derived: walk away from the centre and take the max projected distance
+      const dir = c.lat > 0 ? -1 : 1;
+      let r = 0;
+      for (let a = 60; a < 90; a += 0.5) {
+        const q = map.project([c.lng, c.lat + dir * a]);
+        r = Math.max(r, Math.hypot(q.x - o.x, q.y - o.y));
+      }
+      sendToParent({ type: 'GLOBE_POSITION', x: o.x, y: o.y, r });
+    };
+    post();
+    map.on('move', post);
+    return () => {
+      map.off('move', post);
+    };
+  }, [mapReady, map]);
+
   useEffect(() => {
     if (!mapReady || !map) return;
     const onZoomEnd = () => {
@@ -280,6 +302,8 @@ export default function GlobeMap() {
   const [markers, setMarkers] = useState<MarkerData[]>([]);
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
   const urlParams = useRef(parseUrlParams());
+  // state copy for render-time reads (lint forbids reading the ref during render)
+  const [embed] = useState(parseUrlParams);
   const mapRef = useRef<MapLibreGL.Map | null>(null);
   const cancelIntroRef = useRef<(() => void) | null>(null);
 
@@ -468,6 +492,12 @@ export default function GlobeMap() {
 
   const onMapReady = useCallback((map: MapLibreGL.Map) => {
     isLoadedRef.current = true;
+    // labels=off: hide every basemap text layer so only our dots carry meaning
+    if (urlParams.current.labels === 'off') {
+      for (const l of map.getStyle().layers) {
+        if (l.type === 'symbol') map.setLayoutProperty(l.id, 'visibility', 'none');
+      }
+    }
     const p = urlParams.current;
 
     // Apply URL-param global settings
@@ -528,13 +558,13 @@ export default function GlobeMap() {
   }, []);
 
   return (
-    <div style={{ position: 'fixed', inset: 0 }}>
+    <div style={{ position: 'fixed', inset: 0, background: embed.bg }}>
       <div
         style={{
           position: 'absolute',
           inset: 0,
           zIndex: 10,
-          background: '#ffffff',
+          background: embed.bg ?? '#ffffff',
           opacity: showOverlay ? 1 : 0,
           transition: 'opacity 0.3s ease',
           pointerEvents: showOverlay ? 'auto' : 'none',
@@ -547,6 +577,7 @@ export default function GlobeMap() {
         center={initialCenter}
         zoom={initialZoom}
         dragRotate={false}
+        {...(embed.attribution === 'off' && { attributionControl: false })}
         className="w-full h-full"
       >
         <MapEvents

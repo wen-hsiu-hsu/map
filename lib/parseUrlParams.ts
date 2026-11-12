@@ -20,6 +20,9 @@ export interface UrlParams {
   intro?: boolean;
   introDuration?: number;
   introRotate?: number;
+  labels?: 'off';
+  attribution?: 'off';
+  bg?: string;
 }
 
 function decodeBase64Url(str: string): string {
@@ -106,6 +109,13 @@ export function parseUrlParams(): UrlParams {
     const v = parseFloat(introRotateParam);
     if (!isNaN(v)) result.introRotate = v;
   }
+
+  if (params.get('labels') === 'off') result.labels = 'off';
+  if (params.get('attribution') === 'off') result.attribution = 'off';
+
+  // hex without '#' (a raw '#' would start the URL fragment)
+  const bgParam = params.get('bg');
+  if (bgParam && /^[0-9a-f]{3,8}$/i.test(bgParam)) result.bg = `#${bgParam}`;
 
   const markersParam = params.get('markers');
   if (markersParam) {

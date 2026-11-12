@@ -121,6 +121,9 @@ export default function DocsPage() {
             { name: 'intro', type: 'boolean', required: false, desc: '"true" 或 "1" 啟用開場動畫：地球從遠處旋轉縮近至 center。啟用時 READY 事件延後至動畫結束後發送' },
             { name: 'introDuration', type: 'number', required: false, desc: '開場動畫時長（毫秒）。預設 3000' },
             { name: 'introRotate', type: 'number', required: false, desc: '動畫起始點相對於目標 center 的經度偏移量（度）。預設 90' },
+            { name: 'labels', type: 'string', required: false, desc: '"off" 於載入時隱藏底圖所有文字圖層（地名、道路），只留下標記' },
+            { name: 'attribution', type: 'string', required: false, desc: '"off" 隱藏地圖右下角的版權標示。嵌入方必須自行於頁面上顯示 © OpenStreetMap contributors © CARTO 等底圖來源標示' },
+            { name: 'bg', type: 'string', required: false, desc: '根容器與開場遮罩的背景色，不含 # 的 hex（如 f4f4f2）。未設定時遮罩為白色' },
           ]} />
         </Section>
 
@@ -226,6 +229,7 @@ const src = \`https://your-domain/?markers=\${encoded}\``}</CodeBlock>
             { event: 'READY', desc: '地圖載入完成，可開始發送指令', payload: `{ type: "READY" }` },
             { event: 'MARKER_CLICK', desc: '使用者點擊標記', payload: `{ type: "MARKER_CLICK", id: "a1", lat: 25.05, lng: 121.53 }` },
             { event: 'MAP_CLICK', desc: '使用者點擊空白地圖區域', payload: `{ type: "MAP_CLICK", lat: 25.05, lng: 121.53 }` },
+            { event: 'GLOBE_POSITION', desc: '地圖每次 move 時發送：x、y 為視圖中心的投影像素座標，r 為地球可見邊緣的像素半徑（實測，非公式推算）', payload: `{ type: "GLOBE_POSITION", x: 400, y: 300, r: 250 }` },
             { event: 'ZOOM_CHANGE', desc: '縮放操作結束', payload: `{ type: "ZOOM_CHANGE", zoom: 12 }` },
             { event: 'FLY_START', desc: '智慧飛行動畫開始', payload: `{ type: "FLY_START" }` },
             { event: 'FLY_END', desc: '智慧飛行動畫結束', payload: `{ type: "FLY_END" }` },
