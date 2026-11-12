@@ -184,7 +184,7 @@ const src = \`https://your-domain/?markers=\${encoded}\``}</CodeBlock>
             },
             {
               cmd: 'HIGHLIGHT',
-              desc: '高亮指定 id 的標記（光暈效果）',
+              desc: '高亮指定 id 的標記（光暈效果）；高亮期間其餘標記變為灰色 #a8adb3（不透明），高亮標記的 z-index 高於灰點。id 傳 null 取消高亮',
               payload: `{ type: "HIGHLIGHT", id: "a1" }`,
             },
             {
