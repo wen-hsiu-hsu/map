@@ -271,7 +271,8 @@ function playIntro(
 }
 
 export default function GlobeMap() {
-  const [isLoaded, setIsLoaded] = useState(false);
+  // ref, not state: READY goes out before the re-render, and messages arriving in between were pushed into the already-flushed queue
+  const isLoadedRef = useRef(false);
   const [showOverlay, setShowOverlay] = useState(true);
   const pendingQueue = useRef<InboundMessage[]>([]);
   const [markers, setMarkers] = useState<MarkerData[]>([]);
@@ -409,7 +410,7 @@ export default function GlobeMap() {
     const handler = (event: MessageEvent) => {
       const msg = event.data as InboundMessage;
       if (!msg?.type) return;
-      if (!isLoaded) {
+      if (!isLoadedRef.current) {
         pendingQueue.current.push(msg);
       } else {
         handleMessage(msg);
@@ -417,7 +418,7 @@ export default function GlobeMap() {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [isLoaded, handleMessage]);
+  }, [handleMessage]);
 
   const handleMarkerClick = useCallback(
     (id: string) => {
@@ -449,7 +450,7 @@ export default function GlobeMap() {
   );
 
   const onMapReady = useCallback((map: MapLibreGL.Map) => {
-    setIsLoaded(true);
+    isLoadedRef.current = true;
     const p = urlParams.current;
 
     // Apply URL-param global settings
