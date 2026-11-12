@@ -492,6 +492,9 @@ export default function GlobeMap() {
 
   const onMapReady = useCallback((map: MapLibreGL.Map) => {
     isLoadedRef.current = true;
+    // MapLibre drops its first ResizeObserver callback; an embedder that resizes the iframe while it is
+    // offscreen (throttled) or still loading lands in that dropped callback and the canvas keeps its old size
+    new ResizeObserver(() => map.resize()).observe(map.getContainer());
     // labels=off: hide every basemap text layer so only our dots carry meaning
     if (urlParams.current.labels === 'off') {
       for (const l of map.getStyle().layers) {
