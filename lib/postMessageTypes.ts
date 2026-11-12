@@ -25,4 +25,5 @@ export type OutboundMessage =
   | { type: 'ERROR'; message: string }
   | { type: 'FLY_START'; lat: number; lng: number }
   | { type: 'FLY_END'; lat: number; lng: number }
-  | { type: 'MAP_CLICK'; lat: number; lng: number };
+  | { type: 'MAP_CLICK'; lat: number; lng: number }
+  | { type: 'GLOBE_POSITION'; x: number; y: number; r: number };
