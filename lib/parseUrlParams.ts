@@ -115,7 +115,7 @@ export function parseUrlParams(): UrlParams {
 
   // hex without '#' (a raw '#' would start the URL fragment)
   const bgParam = params.get('bg');
-  if (bgParam && /^[0-9a-f]{3,8}$/i.test(bgParam)) result.bg = `#${bgParam}`;
+  if (bgParam && /^([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(bgParam)) result.bg = `#${bgParam}`;
 
   const markersParam = params.get('markers');
   if (markersParam) {

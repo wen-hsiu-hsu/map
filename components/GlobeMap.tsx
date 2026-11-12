@@ -45,7 +45,7 @@ function MarkerElement({ marker, isActive, hasActiveMarker, defaultColor, onClic
   const showLabel = !!marker.label && (isActive || isHovered || !hasActiveMarker);
   // the active dot must sit above grey dots in the same city; hover still wins
   const baseZ = isActive ? '500' : '';
-  useEffect(() => { if (!isHovered) setMarkerZIndex(baseZ); });
+  useEffect(() => { if (!isHovered) setMarkerZIndex(baseZ); }, [isHovered, baseZ]);
 
   return (
     <div
@@ -400,12 +400,15 @@ export default function GlobeMap() {
           return;
         }
         if (!map) return;
+        // the embedder's values cross a trust boundary: anything that is not a finite number falls back to the default
+        const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+        const offset = Array.isArray(msg.offset) && msg.offset.length === 2 ? msg.offset.map((v) => num(v, 0)) as [number, number] : [0, 0] as [number, number];
         // easeTo, not flyTo: flyTo's curve zooms out mid-flight, this only rotates the globe
         map.easeTo({
           center: [msg.lng, msg.lat],
-          zoom: msg.zoom ?? map.getZoom(),
-          offset: msg.offset ?? [0, 0],
-          duration: msg.duration ?? 1200,
+          zoom: num(msg.zoom, map.getZoom()),
+          offset,
+          duration: Math.max(0, num(msg.duration, 1200)),
         });
         break;
       }
