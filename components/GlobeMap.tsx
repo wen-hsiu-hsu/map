@@ -149,6 +149,7 @@ function MapEvents({
       readyFired.current = true;
       onMapReady(map);
       const queue = pendingQueue.current;
+      // eslint-disable-next-line react-hooks/immutability -- false positive: pendingQueue is a ref object passed as a prop
       pendingQueue.current = [];
       queue.forEach(onMessage);
     }
@@ -301,9 +302,7 @@ export default function GlobeMap() {
   const pendingQueue = useRef<InboundMessage[]>([]);
   const [markers, setMarkers] = useState<MarkerData[]>([]);
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
-  const urlParams = useRef(parseUrlParams());
-  // state copy for render-time reads (lint forbids reading the ref during render)
-  const [embed] = useState(parseUrlParams);
+  const [urlParams] = useState(parseUrlParams);
   const mapRef = useRef<MapLibreGL.Map | null>(null);
   const cancelIntroRef = useRef<(() => void) | null>(null);
 
@@ -321,11 +320,11 @@ export default function GlobeMap() {
   // Resolve initial center: if it's a markerId reference, use DEFAULT_CENTER for Map component
   // (actual resolution happens in onMapReady after markers are set)
   const initialCenter = (() => {
-    const c = urlParams.current.center;
+    const c = urlParams.center;
     if (!c || typeof c === 'object' && 'markerId' in c) return DEFAULT_CENTER;
     return c as [number, number];
   })();
-  const initialZoom = urlParams.current.zoom ?? DEFAULT_ZOOM;
+  const initialZoom = urlParams.zoom ?? DEFAULT_ZOOM;
 
   const applyInteractive = useCallback((map: MapLibreGL.Map, interactive: boolean) => {
     if (interactive) {
@@ -348,7 +347,7 @@ export default function GlobeMap() {
     switch (msg.type) {
       case 'PLAY_INTRO': {
         if (!map) return;
-        const p = urlParams.current;
+        const p = urlParams;
         let targetCenter: [number, number] = DEFAULT_CENTER;
         if (p.center !== undefined) {
           if (Array.isArray(p.center)) {
@@ -444,7 +443,7 @@ export default function GlobeMap() {
         break;
       }
     }
-  }, [applyInteractive]);
+  }, [applyInteractive, urlParams]);
 
   // postMessage listener
   useEffect(() => {
@@ -496,12 +495,12 @@ export default function GlobeMap() {
     // offscreen (throttled) or still loading lands in that dropped callback and the canvas keeps its old size
     new ResizeObserver(() => map.resize()).observe(map.getContainer());
     // labels=off: hide every basemap text layer so only our dots carry meaning
-    if (urlParams.current.labels === 'off') {
+    if (urlParams.labels === 'off') {
       for (const l of map.getStyle().layers) {
         if (l.type === 'symbol') map.setLayoutProperty(l.id, 'visibility', 'none');
       }
     }
-    const p = urlParams.current;
+    const p = urlParams;
 
     // Apply URL-param global settings
     if (p.onMarkerClick) onMarkerClickModeRef.current = p.onMarkerClick;
@@ -549,7 +548,7 @@ export default function GlobeMap() {
       });
       sendToParent({ type: 'READY' });
     }
-  }, []);
+  }, [urlParams]);
 
   const onMapRef = useCallback((map: MapLibreGL.Map | null) => {
     mapRef.current = map;
@@ -561,13 +560,13 @@ export default function GlobeMap() {
   }, []);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: embed.bg }}>
+    <div style={{ position: 'fixed', inset: 0, background: urlParams.bg }}>
       <div
         style={{
           position: 'absolute',
           inset: 0,
           zIndex: 10,
-          background: embed.bg ?? '#ffffff',
+          background: urlParams.bg ?? '#ffffff',
           opacity: showOverlay ? 1 : 0,
           transition: 'opacity 0.3s ease',
           pointerEvents: showOverlay ? 'auto' : 'none',
@@ -580,14 +579,14 @@ export default function GlobeMap() {
         center={initialCenter}
         zoom={initialZoom}
         dragRotate={false}
-        {...(embed.attribution === 'off' && { attributionControl: false })}
+        {...(urlParams.attribution === 'off' && { attributionControl: false })}
         className="w-full h-full"
       >
         <MapEvents
           markers={markers}
           activeMarkerId={activeMarkerId}
           onMarkerClick={handleMarkerClick}
-          defaultMarkerColor={urlParams.current.markerColor ?? '#22c55e'}
+          defaultMarkerColor={urlParams.markerColor ?? '#22c55e'}
           pendingQueue={pendingQueue}
           onMessage={handleMessage}
           onMapReady={onMapReady}

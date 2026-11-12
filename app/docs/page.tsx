@@ -163,7 +163,7 @@ const src = \`https://your-domain/?markers=\${encoded}\``}</CodeBlock>
         {/* ── postMessage 指令 ── */}
         <Section id="postmessage-commands" title="postMessage 指令（Inbound）">
           <p style={{ fontSize: 14, color: '#475569', marginBottom: 16, lineHeight: 1.7 }}>
-            透過 <code style={{ background: '#f1f5f9', padding: '1px 4px', borderRadius: 3 }}>iframeEl.contentWindow.postMessage(payload, '*')</code> 傳送指令至地圖。
+            透過 <code style={{ background: '#f1f5f9', padding: '1px 4px', borderRadius: 3 }}>iframeEl.contentWindow.postMessage(payload, &apos;*&apos;)</code> 傳送指令至地圖。
             建議等收到 <code style={{ background: '#f1f5f9', padding: '1px 4px', borderRadius: 3 }}>READY</code> 事件後再發送指令（地圖會自動排隊早於 READY 的指令）。
           </p>
 
@@ -216,7 +216,7 @@ const src = \`https://your-domain/?markers=\${encoded}\``}</CodeBlock>
         {/* ── postMessage 事件 ── */}
         <Section id="postmessage-events" title="postMessage 事件（Outbound）">
           <p style={{ fontSize: 14, color: '#475569', marginBottom: 16, lineHeight: 1.7 }}>
-            地圖會透過 <code style={{ background: '#f1f5f9', padding: '1px 4px', borderRadius: 3 }}>window.addEventListener('message', handler)</code> 通知父頁面。
+            地圖會透過 <code style={{ background: '#f1f5f9', padding: '1px 4px', borderRadius: 3 }}>window.addEventListener(&apos;message&apos;, handler)</code> 通知父頁面。
           </p>
 
           <CodeBlock>{`window.addEventListener('message', (e) => {
