@@ -33,7 +33,8 @@ interface MarkerElementProps {
 function MarkerElement({ marker, isActive, hasActiveMarker, defaultColor, onClick }: MarkerElementProps) {
   const [isHovered, setIsHovered] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const color = marker.color || defaultColor;
+  // non-active dots go grey at full opacity while a highlight is active
+  const color = hasActiveMarker && !isActive ? '#a8adb3' : marker.color || defaultColor;
 
   function setMarkerZIndex(value: string) {
     const markerEl = containerRef.current?.closest<HTMLElement>('.maplibregl-marker');
@@ -42,8 +43,9 @@ function MarkerElement({ marker, isActive, hasActiveMarker, defaultColor, onClic
 
   // Show label when: active, hovered, or no highlight mode active
   const showLabel = !!marker.label && (isActive || isHovered || !hasActiveMarker);
-  // Dim non-active dots when a highlight is active
-  const dotOpacity = hasActiveMarker && !isActive ? 0.3 : 1;
+  // the active dot must sit above grey dots in the same city; hover still wins
+  const baseZ = isActive ? '500' : '';
+  useEffect(() => { if (!isHovered) setMarkerZIndex(baseZ); });
 
   return (
     <div
@@ -52,7 +54,7 @@ function MarkerElement({ marker, isActive, hasActiveMarker, defaultColor, onClic
       style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'visible' }}
       onClick={() => onClick(marker.id)}
       onMouseEnter={() => { setIsHovered(true); setMarkerZIndex('1000'); }}
-      onMouseLeave={() => { setIsHovered(false); setMarkerZIndex(''); }}
+      onMouseLeave={() => { setIsHovered(false); setMarkerZIndex(baseZ); }}
     >
       {/* Label card + connecting line, above the dot */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 0 }}>
@@ -89,7 +91,7 @@ function MarkerElement({ marker, isActive, hasActiveMarker, defaultColor, onClic
       </div>
 
       {/* Dot */}
-      <div style={{ position: 'relative', width: 14, height: 14, opacity: dotOpacity, transition: 'opacity 0.2s ease' }}>
+      <div style={{ position: 'relative', width: 14, height: 14 }}>
         {/* ping 擴散環 */}
         {isActive && (
           <div
