@@ -369,6 +369,21 @@ export default function GlobeMap() {
         );
         break;
       }
+      case 'EASE_TO': {
+        if (!isValidCoords(msg.lat, msg.lng)) {
+          sendToParent({ type: 'ERROR', message: 'Invalid coordinates for EASE_TO' });
+          return;
+        }
+        if (!map) return;
+        // easeTo, not flyTo: flyTo's curve zooms out mid-flight, this only rotates the globe
+        map.easeTo({
+          center: [msg.lng, msg.lat],
+          zoom: msg.zoom ?? map.getZoom(),
+          offset: msg.offset ?? [0, 0],
+          duration: msg.duration ?? 1200,
+        });
+        break;
+      }
       case 'HIGHLIGHT':
         setActiveMarkerId(msg.id);
         break;

@@ -4,6 +4,7 @@ import type { MarkerData, CenterParam } from './parseUrlParams';
 export type InboundMessage =
   | { type: 'SET_MARKERS'; markers: MarkerData[] }
   | { type: 'FLY_TO'; lat: number; lng: number; zoom?: number }
+  | { type: 'EASE_TO'; lat: number; lng: number; zoom?: number; duration?: number; offset?: [number, number] }
   | { type: 'HIGHLIGHT'; id: string | null }
   | {
       type: 'SET_OPTIONS';
